@@ -159,6 +159,13 @@
     cat: "ALL"
   };
 
+  // Normalize Arabic/English digits and spaces for code input
+  function normalizeDigits(s) {
+    if (!s) return "";
+    const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+    return s.replace(/[\u0660-\u0669]/g, d => map[d]).replace(/[\u200f\u200e\s]/g,'').trim();
+  }
+
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -301,11 +308,11 @@
       const byCat = state.cat === 'ALL' || i.category === state.cat;
       return bySearch && byCat;
     });
-    if (list.length === 0) { empty.classList.remove('hidden'); addBtn.classList.toggle('hidden', !state.owner); return; }
+    if (list.length === 0) { empty.classList.remove('hidden'); addBtn.classList.toggle('hidden', !state.owner); editProfileBtn.classList.toggle('hidden', !state.owner); return; }
     empty.classList.add('hidden');
     list.forEach(i => grid.appendChild(card(i)));
     addBtn.classList.toggle('hidden', !state.owner);
-    document.getElementById('editProfile').classList.toggle('hidden', !state.owner);
+    editProfileBtn.classList.toggle('hidden', !state.owner);
   }
 
   const lb = document.getElementById('lightbox');
@@ -330,10 +337,22 @@
   }
 
   ownerBtn.onclick = () => {
-    if (state.owner) { state.owner = false; addBtn.classList.add('hidden'); alert('تم الخروج'); render(); return; }
+    if (state.owner) {
+      state.owner = false;
+      addBtn.classList.add('hidden');
+      alert('تم الخروج من وضع المالك');
+      render();
+      return;
+    }
     const code = prompt('أدخل رمز المالك:');
-    if (code === OWNER_CODE) { state.owner = true; addBtn.classList.remove('hidden'); alert('تم الدخول'); render(); }
-    else alert('الرمز غير صحيح');
+    const normalized = normalizeDigits((code || '').trim());
+    if (normalized === OWNER_CODE) {
+      state.owner = true;
+      alert('تم الدخول كمالك');
+      render();
+    } else {
+      alert('الرمز غير صحيح');
+    }
   };
 
   const modal = document.getElementById('modal');
@@ -387,6 +406,7 @@
     profileModal.classList.remove('hidden');
   };
 
+  const catFilter = document.getElementById('catFilter');
   catFilter.oninput = () => { state.cat = catFilter.value; render(); };
   search.oninput = () => { state.query = search.value; render(); };
 
