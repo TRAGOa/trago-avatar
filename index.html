@@ -1,12 +1,180 @@
 <!doctype html>
-<html lang="en">
+<html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TRAGO AVATAR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TRAGO AVATAR — Majoodi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body { background: linear-gradient(180deg,#ecfeff,#ffffff,#eff6ff); }
+    </style>
   </head>
-  <body class="bg-white">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+  <body class="min-h-screen text-gray-900">
+    <header class="sticky top-0 z-10 bg-white/70 backdrop-blur border-b">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <h1 class="text-xl font-extrabold bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">
+          TRAGO AVATAR
+        </h1>
+        <div class="flex gap-2 items-center">
+          <input id="search" placeholder="بحث..." class="px-3 py-2 rounded-xl border" />
+          <button id="ownerBtn" class="px-3 py-2 rounded-xl border">مالك؟</button>
+          <button id="addBtn" class="hidden px-3 py-2 rounded-xl text-white bg-gradient-to-r from-cyan-500 to-blue-600">+ أضف أفتار</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-6">
+      <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5"></div>
+      <p id="empty" class="text-center text-gray-500 py-12 hidden">لا توجد عناصر</p>
+    </main>
+
+    <footer class="border-t py-6 text-center text-sm text-gray-500">
+      © <span id="year"></span> TRAGO • Designed by Majoodi
+    </footer>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      <div class="relative w-full max-w-4xl" onclick="event.stopPropagation()">
+        <img id="lbImg" src="" class="w-full max-h-[80vh] object-contain rounded-2xl shadow-lg" />
+        <div class="mt-4 flex justify-between items-center text-white">
+          <div class="flex gap-2">
+            <button id="prev" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20">←</button>
+            <button id="next" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20">→</button>
+          </div>
+          <div class="flex gap-2">
+            <a id="lbLink" target="_blank" class="px-4 py-2 bg-gradient-to-r from-cyan-400 to-blue-600 rounded-xl font-semibold">VRChat ↗</a>
+            <button id="close" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Modal -->
+    <div id="modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div class="w-full max-w-lg bg-white rounded-2xl p-5 border" onclick="event.stopPropagation()">
+        <h3 class="text-lg font-bold mb-3">إضافة أفتار</h3>
+        <input id="mName" class="w-full p-2 rounded-xl mb-2 border" placeholder="اسم الأفتار" />
+        <input id="mLink" class="w-full p-2 rounded-xl mb-2 border" placeholder="رابط VRChat" />
+        <textarea id="mImgs" class="w-full p-2 rounded-xl mb-2 border h-28" placeholder="روابط الصور (سطر لكل صورة)"></textarea>
+        <div class="flex justify-end gap-2">
+          <button id="mCancel" class="px-4 py-2 rounded-xl border">إلغاء</button>
+          <button id="mSave" class="px-4 py-2 rounded-xl text-white bg-gradient-to-r from-cyan-500 to-blue-600">حفظ</button>
+        </div>
+      </div>
+    </div>
+
+<script>
+  const OWNER_CODE = "102361";
+  const KEY = "trago_items";
+  const year = document.getElementById('year'); year.textContent = new Date().getFullYear();
+
+  const defaultItems = [
+    {
+      id: "trago-main",
+      name: "TRAGO AVATAR — Signature",
+      vrchat: "https://vrchat.com/home/avatar/xxxxxxxx",
+      images: [
+        "https://images.unsplash.com/photo-1557264337-e8a93017fe92?w=1600&q=60&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1542751110-97427bbecf20?w=1600&q=60&auto=format&fit=crop"
+      ],
+      createdAt: new Date().toISOString().slice(0,10)
+    }
+  ];
+
+  const state = {
+    items: [], owner: false, query: "", picked: null, pickedIdx: 0
+  };
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      state.items = raw ? JSON.parse(raw) : defaultItems;
+    } catch {
+      state.items = defaultItems;
+    }
+  }
+  function save() {
+    localStorage.setItem(KEY, JSON.stringify(state.items));
+  }
+
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+  const search = document.getElementById('search');
+  const ownerBtn = document.getElementById('ownerBtn');
+  const addBtn = document.getElementById('addBtn');
+
+  function card(item) {
+    const d = document.createElement('div');
+    d.className = "rounded-2xl overflow-hidden border bg-white shadow hover:shadow-lg transition";
+    d.innerHTML = `
+      <button class="text-right w-full" data-open="${item.id}">
+        <img src="${item.images?.[0] || ''}" class="w-full h-56 object-cover" alt="${item.name}"/>
+        <div class="p-4">
+          <h3 class="text-lg font-bold">${item.name}</h3>
+          <p class="text-xs text-gray-500 mt-1">${item.createdAt}</p>
+          <a href="${item.vrchat}" target="_blank" class="inline-block mt-3 px-3 py-1 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600">VRChat ↗</a>
+        </div>
+      </button>`;
+    d.querySelector('button').onclick = () => openLightbox(item);
+    return d;
+  }
+
+  function render() {
+    grid.innerHTML = "";
+    const q = state.query.toLowerCase();
+    const list = state.items.filter(i => !q || i.name.toLowerCase().includes(q));
+    if (list.length === 0) { empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    list.forEach(i => grid.appendChild(card(i)));
+    addBtn.classList.toggle('hidden', !state.owner);
+  }
+
+  const lb = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lbImg');
+  const lbLink = document.getElementById('lbLink');
+  document.getElementById('close').onclick = closeLightbox;
+  document.getElementById('prev').onclick = () => step(-1);
+  document.getElementById('next').onclick = () => step(+1);
+  lb.onclick = closeLightbox;
+
+  function openLightbox(item) {
+    state.picked = item; state.pickedIdx = 0;
+    lbImg.src = item.images[0]; lbLink.href = item.vrchat;
+    lb.classList.remove('hidden');
+  }
+  function closeLightbox(){ lb.classList.add('hidden'); state.picked=null; }
+  function step(dir){
+    if(!state.picked) return;
+    const n = state.picked.images.length;
+    state.pickedIdx = (state.pickedIdx + dir + n) % n;
+    lbImg.src = state.picked.images[state.pickedIdx];
+  }
+
+  ownerBtn.onclick = () => {
+    if (state.owner) { state.owner = false; addBtn.classList.add('hidden'); alert('تم الخروج'); return; }
+    const code = prompt('أدخل رمز المالك:');
+    if (code === OWNER_CODE) { state.owner = true; addBtn.classList.remove('hidden'); alert('تم الدخول'); }
+    else alert('الرمز غير صحيح');
+  };
+
+  const modal = document.getElementById('modal');
+  const mName = document.getElementById('mName');
+  const mLink = document.getElementById('mLink');
+  const mImgs = document.getElementById('mImgs');
+  document.getElementById('mCancel').onclick = () => modal.classList.add('hidden');
+  document.getElementById('mSave').onclick = () => {
+    const name = mName.value.trim();
+    const vrchat = mLink.value.trim();
+    const imgs = mImgs.value.split(/\n|,\s*/).map(s=>s.trim()).filter(Boolean);
+    if(!name || !vrchat || imgs.length === 0) return alert('املأ الحقول');
+    const obj = { id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40), name, vrchat, images: imgs, createdAt: new Date().toISOString().slice(0,10)};
+    state.items.unshift(obj); save(); modal.classList.add('hidden'); mName.value=''; mLink.value=''; mImgs.value=''; render();
+  };
+  addBtn.onclick = () => modal.classList.remove('hidden');
+
+  search.oninput = () => { state.query = search.value; render(); };
+
+  load(); render();
+</script>
   </body>
 </html>
